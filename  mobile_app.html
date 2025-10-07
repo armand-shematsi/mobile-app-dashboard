@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Environment Monitor - Live</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .app-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .app-header {
+            text-align: center;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .app-header h1 {
+            font-size: 1.5em;
+            margin-bottom: 8px;
+        }
+
+        .status-indicator {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8em;
+        }
+
+        .status-online { color: #4CAF50; font-weight: bold; }
+        .status-offline { color: #f44336; font-weight: bold; }
+
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .sensor-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .sensor-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .temperature { border-left: 4px solid #ff6b6b; }
+        .humidity { border-left: 4px solid #4ecdc4; }
+        .battery { border-left: 4px solid #ffe66d; }
+        .motion { border-left: 4px solid #ff9ff3; }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .card-header .icon {
+            font-size: 1.2em;
+            margin-right: 8px;
+        }
+
+        .card-header h3 {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .card-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .unit {
+            font-size: 0.6em;
+            color: #7f8c8d;
+            margin-left: 4px;
+        }
+
+        .battery-level {
+            margin-top: 10px;
+        }
+
+        .battery-bar {
+            width: 100%;
+            height: 8px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .battery-fill {
+            height: 100%;
+            background: #4ecdc4;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .motion-indicator {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .motion-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #bdc3c7;
+            margin-right: 8px;
+            transition: background 0.3s ease;
+        }
+
+        .motion-active {
+            background: #e74c3c;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .refresh-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 15px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .debug-panel {
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 0.8em;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .trend {
+            font-size: 0.7em;
+            padding: 2px 6px;
+            border-radius: 8px;
+            margin-left: 5px;
+        }
+
+        .trend-up { background: #ffebee; color: #e53935; }
+        .trend-down { background: #e8f5e8; color: #43a047; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <h1>🌿 Environment Monitor</h1>
+            <div class="status-indicator">
+                <span id="connectionStatus" class="status-offline">● OFFLINE</span>
+                <span id="lastUpdate">--:--</span>
+            </div>
+        </header>
+
+        <!-- Sensor Cards -->
+        <div class="sensor-grid">
+            <div class="sensor-card temperature">
+                <div class="card-header">
+                    <span class="icon">🌡️</span>
+                    <h3>Temperature</h3>
+                </div>
+                <div class="card-value">
+                    <span id="temperatureValue">--</span>
+                    <span class="unit">°C</span>
+                </div>
+            </div>
+
+            <div class="sensor-card humidity">
+                <div class="card-header">
+                    <span class="icon">💧</span>
+                    <h3>Humidity</h3>
+                </div>
+                <div class="card-value">
+                    <span id="humidityValue">--</span>
+                    <span class="unit">%</span>
+                </div>
+            </div>
+
+            <div class="sensor-card battery">
+                <div class="card-header">
+                    <span class="icon">🔋</span>
+                    <h3>Battery</h3>
+                </div>
+                <div class="card-value">
+                    <span id="batteryValue">--</span>
+                    <span class="unit">V</span>
+                </div>
+                <div class="battery-level">
+                    <div class="battery-bar">
+                        <div class="battery-fill" id="batteryFill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sensor-card motion">
+                <div class="card-header">
+                    <span class="icon">🚶</span>
+                    <h3>Motion</h3>
+                </div>
+                <div class="card-value">
+                    <span id="motionValue">--</span>
+                    <span class="unit">counts</span>
+                </div>
+                <div class="motion-indicator">
+                    <div class="motion-dot" id="motionDot"></div>
+                    <span class="motion-text" id="motionText">No activity</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Refresh Button -->
+        <button class="refresh-btn" onclick="fetchData()">
+            🔄 Refresh Data
+        </button>
+
+        <!-- Auto Refresh Toggle -->
+        <div style="text-align: center; margin-top: 10px; color: white;">
+            <label>
+                <input type="checkbox" id="autoRefresh" checked onchange="toggleAutoRefresh()">
+                Auto-refresh every 30 seconds
+            </label>
+        </div>
+
+        <!-- Debug Panel -->
+        <div class="debug-panel">
+            <strong>Debug Console:</strong>
+            <div id="debugConsole">Ready to connect to Channel 3099951...</div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - USING YOUR ACTUAL CHANNEL ID
+        const config = {
+            channelId: '3099951',  // Your actual Channel ID from the URL
+            apiKey: 'DEP77WJEPRD323O0',  // Your Read API Key
+            updateInterval: 30000  // 30 seconds
+        };
+
+        // App state
+        let appState = {
+            autoRefresh: true,
+            refreshInterval: null,
+            lastData: null
+        };
+
+        // DOM Elements
+        const elements = {
+            temperatureValue: document.getElementById('temperatureValue'),
+            humidityValue: document.getElementById('humidityValue'),
+            batteryValue: document.getElementById('batteryValue'),
+            motionValue: document.getElementById('motionValue'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            lastUpdate: document.getElementById('lastUpdate'),
+            debugConsole: document.getElementById('debugConsole'),
+            batteryFill: document.getElementById('batteryFill'),
+            motionDot: document.getElementById('motionDot'),
+            motionText: document.getElementById('motionText'),
+            autoRefresh: document.getElementById('autoRefresh')
+        };
+
+        // Debug logging
+        function debugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            elements.debugConsole.innerHTML = `[${timestamp}] ${message}<br>` + elements.debugConsole.innerHTML;
+            console.log(message);
+        }
+
+        // Fetch data from ThingSpeak
+        async function fetchData() {
+            debugLog('🔄 Fetching data from ThingSpeak...');
+            
+            const url = `https://api.thingspeak.com/channels/${config.channelId}/feeds/last.json?api_key=${config.apiKey}`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                debugLog(`📡 Response status: ${response.status}`);
+                debugLog(`📊 Raw data: ${JSON.stringify(data)}`);
+                
+                if (data && data.field1 !== undefined) {
+                    debugLog('✅ Data received successfully');
+                    updateConnectionStatus(true);
+                    processData(data);
+                } else {
+                    debugLog('❌ No data available in channel');
+                    debugLog('💡 Make sure your Python script is running and sending data');
+                    updateConnectionStatus(false);
+                    resetDisplays();
+                }
+            } catch (error) {
+                debugLog(`❌ Fetch error: ${error.message}`);
+                updateConnectionStatus(false);
+                resetDisplays();
+            }
+        }
+
+        // Process and display data
+        function processData(data) {
+            debugLog('Processing sensor data...');
+            
+            // Update displays with actual values
+            elements.temperatureValue.textContent = data.field1 ? parseFloat(data.field1).toFixed(1) : '--';
+            elements.humidityValue.textContent = data.field2 ? parseFloat(data.field2).toFixed(1) : '--';
+            elements.batteryValue.textContent = data.field3 ? parseFloat(data.field3).toFixed(2) : '--';
+            elements.motionValue.textContent = data.field4 || '--';
+            
+            // Update battery level (assuming 3.0V-4.2V range)
+            if (data.field3) {
+                const batteryVoltage = parseFloat(data.field3);
+                const batteryPercent = Math.min(100, Math.max(0, ((batteryVoltage - 3.0) / (4.2 - 3.0)) * 100));
+                elements.batteryFill.style.width = `${batteryPercent}%`;
+                
+                // Update battery color
+                if (batteryPercent > 60) {
+                    elements.batteryFill.style.background = '#4ecdc4';
+                } else if (batteryPercent > 20) {
+                    elements.batteryFill.style.background = '#ffe66d';
+                } else {
+                    elements.batteryFill.style.background = '#ff6b6b';
+                }
+            }
+            
+            // Update motion indicator
+            if (data.field4 && parseInt(data.field4) > 0) {
+                elements.motionDot.classList.add('motion-active');
+                elements.motionText.textContent = 'Activity detected';
+                elements.motionText.style.color = '#e74c3c';
+            } else {
+                elements.motionDot.classList.remove('motion-active');
+                elements.motionText.textContent = 'No activity';
+                elements.motionText.style.color = '#7f8c8d';
+            }
+            
+            // Update timestamp
+            const now = new Date();
+            elements.lastUpdate.textContent = now.toLocaleTimeString();
+            
+            appState.lastData = data;
+            debugLog('✅ Display updated with live data');
+        }
+
+        // Reset displays when no data
+        function resetDisplays() {
+            elements.temperatureValue.textContent = '--';
+            elements.humidityValue.textContent = '--';
+            elements.batteryValue.textContent = '--';
+            elements.motionValue.textContent = '--';
+            elements.batteryFill.style.width = '0%';
+            elements.motionDot.classList.remove('motion-active');
+            elements.motionText.textContent = 'No data';
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                elements.connectionStatus.textContent = '● ONLINE';
+                elements.connectionStatus.className = 'status-online';
+            } else {
+                elements.connectionStatus.textContent = '● OFFLINE';
+                elements.connectionStatus.className = 'status-offline';
+            }
+        }
+
+        // Toggle auto-refresh
+        function toggleAutoRefresh() {
+            appState.autoRefresh = elements.autoRefresh.checked;
+            
+            if (appState.autoRefresh) {
+                debugLog('✅ Auto-refresh enabled');
+                startAutoRefresh();
+            } else {
+                debugLog('⏸️ Auto-refresh disabled');
+                stopAutoRefresh();
+            }
+        }
+
+        // Start auto-refresh
+        function startAutoRefresh() {
+            if (appState.refreshInterval) {
+                clearInterval(appState.refreshInterval);
+            }
+            appState.refreshInterval = setInterval(fetchData, config.updateInterval);
+            debugLog(`🔄 Auto-refresh started (every ${config.updateInterval/1000}s)`);
+        }
+
+        // Stop auto-refresh
+        function stopAutoRefresh() {
+            if (appState.refreshInterval) {
+                clearInterval(appState.refreshInterval);
+                appState.refreshInterval = null;
+            }
+        }
+
+        // Initialize app
+        function init() {
+            debugLog('🚀 Environment Monitor Initialized');
+            debugLog(`📡 Channel ID: ${config.channelId}`);
+            debugLog(`🔑 API Key: ${config.apiKey}`);
+            debugLog('Click "Refresh Data" or wait for auto-refresh...');
+            
+            // Start with first data fetch
+            fetchData();
+            
+            // Start auto-refresh
+            startAutoRefresh();
+        }
+
+        // Start the app when page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
