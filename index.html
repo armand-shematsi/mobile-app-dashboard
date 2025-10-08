@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Environment Monitor - Live</title>
+    <title>Environment Monitor - Live + Historical</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
@@ -40,10 +40,91 @@
             display: flex;
             justify-content: space-between;
             font-size: 0.8em;
+            margin-bottom: 10px;
         }
 
         .status-online { color: #4CAF50; font-weight: bold; }
         .status-offline { color: #f44336; font-weight: bold; }
+
+        .time-display {
+            text-align: center;
+            color: white;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 10px;
+        }
+
+        .time-label {
+            font-weight: bold;
+            color: #ffe66d;
+        }
+
+        /* Tab Navigation */
+        .tab-navigation {
+            display: flex;
+            background: white;
+            border-radius: 12px;
+            padding: 5px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s ease;
+            font-size: 0.8em;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Time Range Selector */
+        .time-range-selector {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            background: white;
+            padding: 8px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .time-btn {
+            flex: 1;
+            padding: 8px 5px;
+            border: none;
+            background: #f8f9fa;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.7em;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .time-btn.active {
+            background: #667eea;
+            color: white;
+        }
 
         .sensor-grid {
             display: grid;
@@ -189,18 +270,6 @@
             text-align: center;
         }
 
-        .debug-panel {
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            font-family: monospace;
-            font-size: 0.8em;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
         .trend {
             font-size: 0.7em;
             padding: 2px 6px;
@@ -212,39 +281,18 @@
         .trend-down { background: #e8f5e8; color: #43a047; }
         .trend-stable { background: #f3e5f5; color: #8e24aa; }
 
-        /* Tab Navigation */
-        .tab-navigation {
-            display: flex;
-            background: white;
-            border-radius: 12px;
-            padding: 5px;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            background: transparent;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            color: #666;
-            transition: all 0.3s ease;
-        }
-
-        .tab-btn.active {
-            background: #667eea;
+        .loading {
+            text-align: center;
             color: white;
+            padding: 20px;
+            font-style: italic;
         }
 
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
+        .data-time {
+            font-size: 0.8em;
+            color: rgba(255,255,255,0.9);
+            text-align: center;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -257,12 +305,16 @@
                 <span id="connectionStatus" class="status-offline">● OFFLINE</span>
                 <span id="lastUpdate">--:--</span>
             </div>
+            <div class="time-display">
+                <span class="time-label">🇺🇬 Uganda Time (UTC+3):</span>
+                <span id="ugandaTime">--:--:--</span>
+            </div>
         </header>
 
         <!-- Tab Navigation -->
         <div class="tab-navigation">
-            <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
-            <button class="tab-btn" onclick="switchTab('trends')">📈 Trends</button>
+            <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Live</button>
+            <button class="tab-btn" onclick="switchTab('trends')">📈 History</button>
         </div>
 
         <!-- Dashboard Tab -->
@@ -325,9 +377,14 @@
                 </div>
             </div>
 
+            <!-- Data Collection Time -->
+            <div class="data-time">
+                Last data collected: <span id="dataCollectionTime">--</span>
+            </div>
+
             <!-- Refresh Button -->
-            <button class="refresh-btn" onclick="fetchData()">
-                🔄 Refresh Data
+            <button class="refresh-btn" onclick="fetchLatestData()">
+                🔄 Refresh Live Data
             </button>
 
             <!-- Auto Refresh Toggle -->
@@ -341,8 +398,17 @@
 
         <!-- Trends Tab -->
         <div id="trends-tab" class="tab-content">
+            <!-- Time Range Selector -->
+            <div class="time-range-selector">
+                <button class="time-btn active" onclick="loadHistoricalData(1)">1H</button>
+                <button class="time-btn" onclick="loadHistoricalData(6)">6H</button>
+                <button class="time-btn" onclick="loadHistoricalData(24)">24H</button>
+                <button class="time-btn" onclick="loadHistoricalData(168)">7D</button>
+            </div>
+
             <div class="charts-section">
                 <h2>Historical Trends</h2>
+                <div id="trendsLoading" class="loading">Loading historical data...</div>
                 
                 <div class="chart-container">
                     <div class="chart-title">Temperature Trend</div>
@@ -365,12 +431,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Debug Panel -->
-        <div class="debug-panel">
-            <strong>Debug Console:</strong>
-            <div id="debugConsole">Ready to connect to Channel 3099951...</div>
-        </div>
     </div>
 
     <script>
@@ -386,15 +446,15 @@
             autoRefresh: true,
             refreshInterval: null,
             lastData: null,
-            history: {
+            currentTimeRange: 1, // 1 hour default
+            charts: {},
+            realTimeHistory: {
                 temperature: [],
                 humidity: [],
                 battery: [],
                 motion: [],
                 timestamps: []
-            },
-            charts: {},
-            maxHistoryPoints: 20
+            }
         };
 
         // DOM Elements
@@ -405,35 +465,107 @@
             motionValue: document.getElementById('motionValue'),
             connectionStatus: document.getElementById('connectionStatus'),
             lastUpdate: document.getElementById('lastUpdate'),
-            debugConsole: document.getElementById('debugConsole'),
+            ugandaTime: document.getElementById('ugandaTime'),
             batteryFill: document.getElementById('batteryFill'),
             motionDot: document.getElementById('motionDot'),
             motionText: document.getElementById('motionText'),
             autoRefresh: document.getElementById('autoRefresh'),
             tempTrend: document.getElementById('tempTrend'),
-            humidityTrend: document.getElementById('humidityTrend')
+            humidityTrend: document.getElementById('humidityTrend'),
+            trendsLoading: document.getElementById('trendsLoading'),
+            dataCollectionTime: document.getElementById('dataCollectionTime')
         };
 
-        // Debug logging
-        function debugLog(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            elements.debugConsole.innerHTML = `[${timestamp}] ${message}<br>` + elements.debugConsole.innerHTML;
-            console.log(message);
+        // Get Uganda Time (UTC+3)
+        function getUgandaTime() {
+            const now = new Date();
+            // Convert to UTC+3 (East Africa Time)
+            const ugandaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+            return ugandaTime.toLocaleTimeString('en-US', { 
+                timeZone: 'Africa/Nairobi',
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        // Update Uganda time display
+        function updateUgandaTime() {
+            elements.ugandaTime.textContent = getUgandaTime();
         }
 
         // Tab switching
         function switchTab(tabName) {
             // Update buttons
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            event.target.classList.add('active');
             
             // Update content
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(`${tabName}-tab`).classList.add('active');
             
             if (tabName === 'trends') {
-                updateAllCharts();
+                loadHistoricalData(appState.currentTimeRange);
             }
+        }
+
+        // Time range selection
+        function loadHistoricalData(hours) {
+            appState.currentTimeRange = hours;
+            
+            // Update time buttons
+            document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            elements.trendsLoading.style.display = 'block';
+            
+            // Calculate start date (now - hours)
+            const endDate = new Date();
+            const startDate = new Date(endDate.getTime() - (hours * 60 * 60 * 1000));
+            
+            const startString = startDate.toISOString().slice(0,19).replace('T', '%20');
+            const endString = endDate.toISOString().slice(0,19).replace('T', '%20');
+            
+            // ThingSpeak API for historical data
+            const url = `https://api.thingspeak.com/channels/${config.channelId}/feeds.json?api_key=${config.apiKey}&start=${startString}&end=${endString}&results=8000`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    elements.trendsLoading.style.display = 'none';
+                    if (data && data.feeds && data.feeds.length > 0) {
+                        processHistoricalData(data.feeds);
+                    }
+                })
+                .catch(error => {
+                    elements.trendsLoading.style.display = 'none';
+                });
+        }
+
+        // Process historical data from ThingSpeak
+        function processHistoricalData(feeds) {
+            const timestamps = [];
+            const temperatureData = [];
+            const humidityData = [];
+            const batteryData = [];
+            const motionData = [];
+            
+            feeds.forEach(feed => {
+                if (feed.created_at) {
+                    const date = new Date(feed.created_at);
+                    // Convert to Uganda time (UTC+3)
+                    const ugandaDate = new Date(date.getTime() + (3 * 60 * 60 * 1000));
+                    timestamps.push(ugandaDate.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+                    
+                    temperatureData.push(feed.field1 ? parseFloat(feed.field1) : null);
+                    humidityData.push(feed.field2 ? parseFloat(feed.field2) : null);
+                    batteryData.push(feed.field3 ? parseFloat(feed.field3) : null);
+                    motionData.push(feed.field4 ? parseInt(feed.field4) : 0);
+                }
+            });
+            
+            updateHistoricalCharts(timestamps, temperatureData, humidityData, batteryData, motionData);
         }
 
         // Initialize charts
@@ -444,10 +576,6 @@
                 plugins: {
                     legend: {
                         display: false
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
                     }
                 },
                 scales: {
@@ -457,9 +585,9 @@
                             display: false
                         },
                         ticks: {
-                            maxTicksLimit: 6,
+                            maxTicksLimit: 8,
                             font: {
-                                size: 10
+                                size: 9
                             }
                         }
                     },
@@ -470,18 +598,15 @@
                         },
                         ticks: {
                             font: {
-                                size: 10
+                                size: 9
                             }
                         }
                     }
                 },
                 elements: {
                     point: {
-                        radius: 2,
-                        hoverRadius: 4
-                    },
-                    line: {
-                        tension: 0.4
+                        radius: 1,
+                        hoverRadius: 3
                     }
                 }
             };
@@ -502,19 +627,7 @@
                             fill: true
                         }]
                     },
-                    options: {
-                        ...chartOptions,
-                        scales: {
-                            ...chartOptions.scales,
-                            y: {
-                                ...chartOptions.scales.y,
-                                title: {
-                                    display: true,
-                                    text: '°C'
-                                }
-                            }
-                        }
-                    }
+                    options: chartOptions
                 }
             );
 
@@ -534,19 +647,7 @@
                             fill: true
                         }]
                     },
-                    options: {
-                        ...chartOptions,
-                        scales: {
-                            ...chartOptions.scales,
-                            y: {
-                                ...chartOptions.scales.y,
-                                title: {
-                                    display: true,
-                                    text: '%'
-                                }
-                            }
-                        }
-                    }
+                    options: chartOptions
                 }
             );
 
@@ -566,19 +667,7 @@
                             fill: true
                         }]
                     },
-                    options: {
-                        ...chartOptions,
-                        scales: {
-                            ...chartOptions.scales,
-                            y: {
-                                ...chartOptions.scales.y,
-                                title: {
-                                    display: true,
-                                    text: 'Volts'
-                                }
-                            }
-                        }
-                    }
+                    options: chartOptions
                 }
             );
 
@@ -597,28 +686,58 @@
                             borderWidth: 1
                         }]
                     },
-                    options: {
-                        ...chartOptions,
-                        scales: {
-                            ...chartOptions.scales,
-                            y: {
-                                ...chartOptions.scales.y,
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Count'
-                                }
-                            }
-                        }
-                    }
+                    options: chartOptions
                 }
             );
         }
 
+        // Update historical charts
+        function updateHistoricalCharts(labels, temperature, humidity, battery, motion) {
+            if (!appState.charts.temperature) return;
+            
+            appState.charts.temperature.data.labels = labels;
+            appState.charts.temperature.data.datasets[0].data = temperature;
+            appState.charts.temperature.update('none');
+            
+            appState.charts.humidity.data.labels = labels;
+            appState.charts.humidity.data.datasets[0].data = humidity;
+            appState.charts.humidity.update('none');
+            
+            appState.charts.battery.data.labels = labels;
+            appState.charts.battery.data.datasets[0].data = battery;
+            appState.charts.battery.update('none');
+            
+            appState.charts.motion.data.labels = labels;
+            appState.charts.motion.data.datasets[0].data = motion;
+            appState.charts.motion.update('none');
+        }
+
+        // Update real-time history for trend indicators
+        function updateRealtimeHistory(data) {
+            const now = new Date();
+            const ugandaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+            const timeLabel = ugandaTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            
+            appState.realTimeHistory.temperature.push(data.field1 ? parseFloat(data.field1) : null);
+            appState.realTimeHistory.humidity.push(data.field2 ? parseFloat(data.field2) : null);
+            appState.realTimeHistory.battery.push(data.field3 ? parseFloat(data.field3) : null);
+            appState.realTimeHistory.motion.push(data.field4 ? parseInt(data.field4) : 0);
+            appState.realTimeHistory.timestamps.push(timeLabel);
+            
+            // Keep only last 10 points for real-time trends
+            if (appState.realTimeHistory.temperature.length > 10) {
+                appState.realTimeHistory.temperature.shift();
+                appState.realTimeHistory.humidity.shift();
+                appState.realTimeHistory.battery.shift();
+                appState.realTimeHistory.motion.shift();
+                appState.realTimeHistory.timestamps.shift();
+            }
+        }
+
         // Update trend indicators
         function updateTrendIndicators() {
-            const tempHistory = appState.history.temperature;
-            const humidityHistory = appState.history.humidity;
+            const tempHistory = appState.realTimeHistory.temperature;
+            const humidityHistory = appState.realTimeHistory.humidity;
             
             if (tempHistory.length >= 2) {
                 const current = tempHistory[tempHistory.length - 1];
@@ -639,7 +758,7 @@
             const absDiff = Math.abs(difference);
             const unit = type === 'temp' ? '°C' : '%';
             
-            if (absDiff < 0.1) {
+            if (absDiff < 0.1 || isNaN(difference)) {
                 element.className = 'trend trend-stable';
                 element.textContent = '→';
             } else if (difference > 0) {
@@ -651,84 +770,29 @@
             }
         }
 
-        // Update history data
-        function updateHistory(data) {
-            const now = new Date();
-            const timeLabel = now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-            
-            // Add new data
-            appState.history.temperature.push(data.field1 ? parseFloat(data.field1) : null);
-            appState.history.humidity.push(data.field2 ? parseFloat(data.field2) : null);
-            appState.history.battery.push(data.field3 ? parseFloat(data.field3) : null);
-            appState.history.motion.push(data.field4 ? parseInt(data.field4) : 0);
-            appState.history.timestamps.push(timeLabel);
-            
-            // Limit history size
-            if (appState.history.temperature.length > appState.maxHistoryPoints) {
-                appState.history.temperature.shift();
-                appState.history.humidity.shift();
-                appState.history.battery.shift();
-                appState.history.motion.shift();
-                appState.history.timestamps.shift();
-            }
-        }
-
-        // Update all charts
-        function updateAllCharts() {
-            if (!appState.charts.temperature) return;
-            
-            const labels = appState.history.timestamps;
-            
-            // Update each chart
-            appState.charts.temperature.data.labels = labels;
-            appState.charts.temperature.data.datasets[0].data = appState.history.temperature;
-            appState.charts.temperature.update('none');
-            
-            appState.charts.humidity.data.labels = labels;
-            appState.charts.humidity.data.datasets[0].data = appState.history.humidity;
-            appState.charts.humidity.update('none');
-            
-            appState.charts.battery.data.labels = labels;
-            appState.charts.battery.data.datasets[0].data = appState.history.battery;
-            appState.charts.battery.update('none');
-            
-            appState.charts.motion.data.labels = labels;
-            appState.charts.motion.data.datasets[0].data = appState.history.motion;
-            appState.charts.motion.update('none');
-        }
-
-        // Fetch data from ThingSpeak
-        async function fetchData() {
-            debugLog('🔄 Fetching data from ThingSpeak...');
-            
+        // Fetch latest data from ThingSpeak
+        async function fetchLatestData() {
             const url = `https://api.thingspeak.com/channels/${config.channelId}/feeds/last.json?api_key=${config.apiKey}`;
             
             try {
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                debugLog(`📡 Response status: ${response.status}`);
-                
                 if (data && data.field1 !== undefined) {
-                    debugLog('✅ Data received successfully');
                     updateConnectionStatus(true);
-                    processData(data);
+                    processLatestData(data);
                 } else {
-                    debugLog('❌ No data available in channel');
                     updateConnectionStatus(false);
                     resetDisplays();
                 }
             } catch (error) {
-                debugLog(`❌ Fetch error: ${error.message}`);
                 updateConnectionStatus(false);
                 resetDisplays();
             }
         }
 
-        // Process and display data
-        function processData(data) {
-            debugLog('Processing sensor data...');
-            
+        // Process and display latest data
+        function processLatestData(data) {
             // Update displays with actual values
             elements.temperatureValue.textContent = data.field1 ? parseFloat(data.field1).toFixed(1) : '--';
             elements.humidityValue.textContent = data.field2 ? parseFloat(data.field2).toFixed(1) : '--';
@@ -761,17 +825,31 @@
                 elements.motionText.style.color = '#7f8c8d';
             }
             
-            // Update timestamp
+            // Update Uganda timestamp
             const now = new Date();
-            elements.lastUpdate.textContent = now.toLocaleTimeString();
+            const ugandaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+            elements.lastUpdate.textContent = ugandaTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
             
-            // Update history and trends
-            updateHistory(data);
+            // Update data collection time
+            if (data.created_at) {
+                const collectionTime = new Date(data.created_at);
+                const ugandaCollectionTime = new Date(collectionTime.getTime() + (3 * 60 * 60 * 1000));
+                elements.dataCollectionTime.textContent = ugandaCollectionTime.toLocaleString('en-US', {
+                    timeZone: 'Africa/Nairobi',
+                    hour12: false,
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+            
+            // Update real-time history and trends
+            updateRealtimeHistory(data);
             updateTrendIndicators();
-            updateAllCharts();
             
             appState.lastData = data;
-            debugLog('✅ Display updated with live data and trends');
         }
 
         // Reset displays when no data
@@ -785,6 +863,7 @@
             elements.motionText.textContent = 'No data';
             elements.tempTrend.textContent = '→';
             elements.humidityTrend.textContent = '→';
+            elements.dataCollectionTime.textContent = '--';
         }
 
         // Update connection status
@@ -803,10 +882,8 @@
             appState.autoRefresh = elements.autoRefresh.checked;
             
             if (appState.autoRefresh) {
-                debugLog('✅ Auto-refresh enabled');
                 startAutoRefresh();
             } else {
-                debugLog('⏸️ Auto-refresh disabled');
                 stopAutoRefresh();
             }
         }
@@ -816,8 +893,7 @@
             if (appState.refreshInterval) {
                 clearInterval(appState.refreshInterval);
             }
-            appState.refreshInterval = setInterval(fetchData, config.updateInterval);
-            debugLog(`🔄 Auto-refresh started (every ${config.updateInterval/1000}s)`);
+            appState.refreshInterval = setInterval(fetchLatestData, config.updateInterval);
         }
 
         // Stop auto-refresh
@@ -830,16 +906,18 @@
 
         // Initialize app
         function init() {
-            debugLog('🚀 Environment Monitor Initialized');
-            debugLog(`📡 Channel ID: ${config.channelId}`);
-            debugLog(`🔑 API Key: ${config.apiKey}`);
-            debugLog('Click "Refresh Data" or wait for auto-refresh...');
-            
             // Initialize charts
             initializeCharts();
             
+            // Start Uganda time updates
+            updateUgandaTime();
+            setInterval(updateUgandaTime, 1000);
+            
+            // Load initial historical data
+            loadHistoricalData(1);
+            
             // Start with first data fetch
-            fetchData();
+            fetchLatestData();
             
             // Start auto-refresh
             startAutoRefresh();
