@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Environment Monitor - Live</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
             margin: 0;
@@ -155,6 +156,39 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
+        /* Charts Section */
+        .charts-section {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .charts-section h2 {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .chart-container {
+            height: 200px;
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .chart-container:last-child {
+            margin-bottom: 0;
+        }
+
+        .chart-title {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
         .debug-panel {
             background: rgba(0,0,0,0.8);
             color: white;
@@ -176,6 +210,42 @@
 
         .trend-up { background: #ffebee; color: #e53935; }
         .trend-down { background: #e8f5e8; color: #43a047; }
+        .trend-stable { background: #f3e5f5; color: #8e24aa; }
+
+        /* Tab Navigation */
+        .tab-navigation {
+            display: flex;
+            background: white;
+            border-radius: 12px;
+            padding: 5px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -189,73 +259,111 @@
             </div>
         </header>
 
-        <!-- Sensor Cards -->
-        <div class="sensor-grid">
-            <div class="sensor-card temperature">
-                <div class="card-header">
-                    <span class="icon">🌡️</span>
-                    <h3>Temperature</h3>
-                </div>
-                <div class="card-value">
-                    <span id="temperatureValue">--</span>
-                    <span class="unit">°C</span>
-                </div>
-            </div>
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('trends')">📈 Trends</button>
+        </div>
 
-            <div class="sensor-card humidity">
-                <div class="card-header">
-                    <span class="icon">💧</span>
-                    <h3>Humidity</h3>
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" class="tab-content active">
+            <!-- Sensor Cards -->
+            <div class="sensor-grid">
+                <div class="sensor-card temperature">
+                    <div class="card-header">
+                        <span class="icon">🌡️</span>
+                        <h3>Temperature</h3>
+                    </div>
+                    <div class="card-value">
+                        <span id="temperatureValue">--</span>
+                        <span class="unit">°C</span>
+                        <span id="tempTrend" class="trend trend-stable">→</span>
+                    </div>
                 </div>
-                <div class="card-value">
-                    <span id="humidityValue">--</span>
-                    <span class="unit">%</span>
-                </div>
-            </div>
 
-            <div class="sensor-card battery">
-                <div class="card-header">
-                    <span class="icon">🔋</span>
-                    <h3>Battery</h3>
+                <div class="sensor-card humidity">
+                    <div class="card-header">
+                        <span class="icon">💧</span>
+                        <h3>Humidity</h3>
+                    </div>
+                    <div class="card-value">
+                        <span id="humidityValue">--</span>
+                        <span class="unit">%</span>
+                        <span id="humidityTrend" class="trend trend-stable">→</span>
+                    </div>
                 </div>
-                <div class="card-value">
-                    <span id="batteryValue">--</span>
-                    <span class="unit">V</span>
+
+                <div class="sensor-card battery">
+                    <div class="card-header">
+                        <span class="icon">🔋</span>
+                        <h3>Battery</h3>
+                    </div>
+                    <div class="card-value">
+                        <span id="batteryValue">--</span>
+                        <span class="unit">V</span>
+                    </div>
+                    <div class="battery-level">
+                        <div class="battery-bar">
+                            <div class="battery-fill" id="batteryFill" style="width: 0%"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="battery-level">
-                    <div class="battery-bar">
-                        <div class="battery-fill" id="batteryFill" style="width: 0%"></div>
+
+                <div class="sensor-card motion">
+                    <div class="card-header">
+                        <span class="icon">🚶</span>
+                        <h3>Motion</h3>
+                    </div>
+                    <div class="card-value">
+                        <span id="motionValue">--</span>
+                        <span class="unit">counts</span>
+                    </div>
+                    <div class="motion-indicator">
+                        <div class="motion-dot" id="motionDot"></div>
+                        <span class="motion-text" id="motionText">No activity</span>
                     </div>
                 </div>
             </div>
 
-            <div class="sensor-card motion">
-                <div class="card-header">
-                    <span class="icon">🚶</span>
-                    <h3>Motion</h3>
-                </div>
-                <div class="card-value">
-                    <span id="motionValue">--</span>
-                    <span class="unit">counts</span>
-                </div>
-                <div class="motion-indicator">
-                    <div class="motion-dot" id="motionDot"></div>
-                    <span class="motion-text" id="motionText">No activity</span>
-                </div>
+            <!-- Refresh Button -->
+            <button class="refresh-btn" onclick="fetchData()">
+                🔄 Refresh Data
+            </button>
+
+            <!-- Auto Refresh Toggle -->
+            <div style="text-align: center; margin-top: 10px; color: white;">
+                <label>
+                    <input type="checkbox" id="autoRefresh" checked onchange="toggleAutoRefresh()">
+                    Auto-refresh every 30 seconds
+                </label>
             </div>
         </div>
 
-        <!-- Refresh Button -->
-        <button class="refresh-btn" onclick="fetchData()">
-            🔄 Refresh Data
-        </button>
-
-        <!-- Auto Refresh Toggle -->
-        <div style="text-align: center; margin-top: 10px; color: white;">
-            <label>
-                <input type="checkbox" id="autoRefresh" checked onchange="toggleAutoRefresh()">
-                Auto-refresh every 30 seconds
-            </label>
+        <!-- Trends Tab -->
+        <div id="trends-tab" class="tab-content">
+            <div class="charts-section">
+                <h2>Historical Trends</h2>
+                
+                <div class="chart-container">
+                    <div class="chart-title">Temperature Trend</div>
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title">Humidity Trend</div>
+                    <canvas id="humidityChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title">Battery Voltage Trend</div>
+                    <canvas id="batteryChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title">Motion Activity</div>
+                    <canvas id="motionChart"></canvas>
+                </div>
+            </div>
         </div>
 
         <!-- Debug Panel -->
@@ -266,18 +374,27 @@
     </div>
 
     <script>
-        // Configuration - USING YOUR ACTUAL CHANNEL ID
+        // Configuration
         const config = {
-            channelId: '3099951',  // Your actual Channel ID from the URL
-            apiKey: 'DEP77WJEPRD323O0',  // Your Read API Key
-            updateInterval: 30000  // 30 seconds
+            channelId: '3099951',
+            apiKey: 'DEP77WJEPRD323O0',
+            updateInterval: 30000
         };
 
         // App state
         let appState = {
             autoRefresh: true,
             refreshInterval: null,
-            lastData: null
+            lastData: null,
+            history: {
+                temperature: [],
+                humidity: [],
+                battery: [],
+                motion: [],
+                timestamps: []
+            },
+            charts: {},
+            maxHistoryPoints: 20
         };
 
         // DOM Elements
@@ -292,7 +409,9 @@
             batteryFill: document.getElementById('batteryFill'),
             motionDot: document.getElementById('motionDot'),
             motionText: document.getElementById('motionText'),
-            autoRefresh: document.getElementById('autoRefresh')
+            autoRefresh: document.getElementById('autoRefresh'),
+            tempTrend: document.getElementById('tempTrend'),
+            humidityTrend: document.getElementById('humidityTrend')
         };
 
         // Debug logging
@@ -300,6 +419,282 @@
             const timestamp = new Date().toLocaleTimeString();
             elements.debugConsole.innerHTML = `[${timestamp}] ${message}<br>` + elements.debugConsole.innerHTML;
             console.log(message);
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            if (tabName === 'trends') {
+                updateAllCharts();
+            }
+        }
+
+        // Initialize charts
+        function initializeCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxTicksLimit: 6,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: {
+                        display: true,
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        ticks: {
+                            font: {
+                                size: 10
+                            }
+                        }
+                    }
+                },
+                elements: {
+                    point: {
+                        radius: 2,
+                        hoverRadius: 4
+                    },
+                    line: {
+                        tension: 0.4
+                    }
+                }
+            };
+
+            // Temperature Chart
+            appState.charts.temperature = new Chart(
+                document.getElementById('temperatureChart'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Temperature (°C)',
+                            data: [],
+                            borderColor: '#ff6b6b',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        scales: {
+                            ...chartOptions.scales,
+                            y: {
+                                ...chartOptions.scales.y,
+                                title: {
+                                    display: true,
+                                    text: '°C'
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+
+            // Humidity Chart
+            appState.charts.humidity = new Chart(
+                document.getElementById('humidityChart'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Humidity (%)',
+                            data: [],
+                            borderColor: '#4ecdc4',
+                            backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        scales: {
+                            ...chartOptions.scales,
+                            y: {
+                                ...chartOptions.scales.y,
+                                title: {
+                                    display: true,
+                                    text: '%'
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+
+            // Battery Chart
+            appState.charts.battery = new Chart(
+                document.getElementById('batteryChart'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Battery (V)',
+                            data: [],
+                            borderColor: '#ffe66d',
+                            backgroundColor: 'rgba(255, 230, 109, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        scales: {
+                            ...chartOptions.scales,
+                            y: {
+                                ...chartOptions.scales.y,
+                                title: {
+                                    display: true,
+                                    text: 'Volts'
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+
+            // Motion Chart
+            appState.charts.motion = new Chart(
+                document.getElementById('motionChart'),
+                {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Motion Count',
+                            data: [],
+                            backgroundColor: '#ff9ff3',
+                            borderColor: '#ff79e9',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        scales: {
+                            ...chartOptions.scales,
+                            y: {
+                                ...chartOptions.scales.y,
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Count'
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+        }
+
+        // Update trend indicators
+        function updateTrendIndicators() {
+            const tempHistory = appState.history.temperature;
+            const humidityHistory = appState.history.humidity;
+            
+            if (tempHistory.length >= 2) {
+                const current = tempHistory[tempHistory.length - 1];
+                const previous = tempHistory[tempHistory.length - 2];
+                const diff = current - previous;
+                updateTrendElement(elements.tempTrend, diff, 'temp');
+            }
+            
+            if (humidityHistory.length >= 2) {
+                const current = humidityHistory[humidityHistory.length - 1];
+                const previous = humidityHistory[humidityHistory.length - 2];
+                const diff = current - previous;
+                updateTrendElement(elements.humidityTrend, diff, 'humidity');
+            }
+        }
+
+        function updateTrendElement(element, difference, type) {
+            const absDiff = Math.abs(difference);
+            const unit = type === 'temp' ? '°C' : '%';
+            
+            if (absDiff < 0.1) {
+                element.className = 'trend trend-stable';
+                element.textContent = '→';
+            } else if (difference > 0) {
+                element.className = 'trend trend-up';
+                element.textContent = `↑ ${difference.toFixed(1)}${unit}`;
+            } else {
+                element.className = 'trend trend-down';
+                element.textContent = `↓ ${Math.abs(difference).toFixed(1)}${unit}`;
+            }
+        }
+
+        // Update history data
+        function updateHistory(data) {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            
+            // Add new data
+            appState.history.temperature.push(data.field1 ? parseFloat(data.field1) : null);
+            appState.history.humidity.push(data.field2 ? parseFloat(data.field2) : null);
+            appState.history.battery.push(data.field3 ? parseFloat(data.field3) : null);
+            appState.history.motion.push(data.field4 ? parseInt(data.field4) : 0);
+            appState.history.timestamps.push(timeLabel);
+            
+            // Limit history size
+            if (appState.history.temperature.length > appState.maxHistoryPoints) {
+                appState.history.temperature.shift();
+                appState.history.humidity.shift();
+                appState.history.battery.shift();
+                appState.history.motion.shift();
+                appState.history.timestamps.shift();
+            }
+        }
+
+        // Update all charts
+        function updateAllCharts() {
+            if (!appState.charts.temperature) return;
+            
+            const labels = appState.history.timestamps;
+            
+            // Update each chart
+            appState.charts.temperature.data.labels = labels;
+            appState.charts.temperature.data.datasets[0].data = appState.history.temperature;
+            appState.charts.temperature.update('none');
+            
+            appState.charts.humidity.data.labels = labels;
+            appState.charts.humidity.data.datasets[0].data = appState.history.humidity;
+            appState.charts.humidity.update('none');
+            
+            appState.charts.battery.data.labels = labels;
+            appState.charts.battery.data.datasets[0].data = appState.history.battery;
+            appState.charts.battery.update('none');
+            
+            appState.charts.motion.data.labels = labels;
+            appState.charts.motion.data.datasets[0].data = appState.history.motion;
+            appState.charts.motion.update('none');
         }
 
         // Fetch data from ThingSpeak
@@ -313,7 +708,6 @@
                 const data = await response.json();
                 
                 debugLog(`📡 Response status: ${response.status}`);
-                debugLog(`📊 Raw data: ${JSON.stringify(data)}`);
                 
                 if (data && data.field1 !== undefined) {
                     debugLog('✅ Data received successfully');
@@ -321,7 +715,6 @@
                     processData(data);
                 } else {
                     debugLog('❌ No data available in channel');
-                    debugLog('💡 Make sure your Python script is running and sending data');
                     updateConnectionStatus(false);
                     resetDisplays();
                 }
@@ -342,13 +735,12 @@
             elements.batteryValue.textContent = data.field3 ? parseFloat(data.field3).toFixed(2) : '--';
             elements.motionValue.textContent = data.field4 || '--';
             
-            // Update battery level (assuming 3.0V-4.2V range)
+            // Update battery level
             if (data.field3) {
                 const batteryVoltage = parseFloat(data.field3);
                 const batteryPercent = Math.min(100, Math.max(0, ((batteryVoltage - 3.0) / (4.2 - 3.0)) * 100));
                 elements.batteryFill.style.width = `${batteryPercent}%`;
                 
-                // Update battery color
                 if (batteryPercent > 60) {
                     elements.batteryFill.style.background = '#4ecdc4';
                 } else if (batteryPercent > 20) {
@@ -373,8 +765,13 @@
             const now = new Date();
             elements.lastUpdate.textContent = now.toLocaleTimeString();
             
+            // Update history and trends
+            updateHistory(data);
+            updateTrendIndicators();
+            updateAllCharts();
+            
             appState.lastData = data;
-            debugLog('✅ Display updated with live data');
+            debugLog('✅ Display updated with live data and trends');
         }
 
         // Reset displays when no data
@@ -386,6 +783,8 @@
             elements.batteryFill.style.width = '0%';
             elements.motionDot.classList.remove('motion-active');
             elements.motionText.textContent = 'No data';
+            elements.tempTrend.textContent = '→';
+            elements.humidityTrend.textContent = '→';
         }
 
         // Update connection status
@@ -435,6 +834,9 @@
             debugLog(`📡 Channel ID: ${config.channelId}`);
             debugLog(`🔑 API Key: ${config.apiKey}`);
             debugLog('Click "Refresh Data" or wait for auto-refresh...');
+            
+            // Initialize charts
+            initializeCharts();
             
             // Start with first data fetch
             fetchData();
