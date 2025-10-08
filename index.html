@@ -294,6 +294,13 @@
             text-align: center;
             margin-top: 5px;
         }
+
+        .current-time {
+            font-size: 0.8em;
+            color: rgba(255,255,255,0.9);
+            text-align: center;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -306,8 +313,11 @@
                 <span id="lastUpdate">--:--</span>
             </div>
             <div class="time-display">
-                <span class="time-label">🇺🇬 Uganda Time (UTC+3):</span>
+                <span class="time-label">🇺🇬 Current Uganda Time (UTC+3):</span>
                 <span id="ugandaTime">--:--:--</span>
+            </div>
+            <div class="current-time">
+                <span id="currentDate">-- --- ----</span>
             </div>
         </header>
 
@@ -404,6 +414,7 @@
                 <button class="time-btn" onclick="loadHistoricalData(6)">6H</button>
                 <button class="time-btn" onclick="loadHistoricalData(24)">24H</button>
                 <button class="time-btn" onclick="loadHistoricalData(168)">7D</button>
+                <button class="time-btn" onclick="loadHistoricalData(720)">1M</button>
             </div>
 
             <div class="charts-section">
@@ -466,6 +477,7 @@
             connectionStatus: document.getElementById('connectionStatus'),
             lastUpdate: document.getElementById('lastUpdate'),
             ugandaTime: document.getElementById('ugandaTime'),
+            currentDate: document.getElementById('currentDate'),
             batteryFill: document.getElementById('batteryFill'),
             motionDot: document.getElementById('motionDot'),
             motionText: document.getElementById('motionText'),
@@ -478,10 +490,7 @@
 
         // Get Uganda Time (UTC+3)
         function getUgandaTime() {
-            const now = new Date();
-            // Convert to UTC+3 (East Africa Time)
-            const ugandaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-            return ugandaTime.toLocaleTimeString('en-US', { 
+            return new Date().toLocaleTimeString('en-US', { 
                 timeZone: 'Africa/Nairobi',
                 hour12: false,
                 hour: '2-digit',
@@ -490,9 +499,61 @@
             });
         }
 
-        // Update Uganda time display
+        // Get Uganda Date
+        function getUgandaDate() {
+            return new Date().toLocaleDateString('en-US', { 
+                timeZone: 'Africa/Nairobi',
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        // Convert UTC time to Uganda time (UTC+3)
+        function convertToUgandaTime(utcDateString) {
+            const date = new Date(utcDateString);
+            return date.toLocaleString('en-US', {
+                timeZone: 'Africa/Nairobi',
+                hour12: false,
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Convert UTC time to Uganda time for charts
+        function convertToUgandaTimeForChart(utcDateString, hours) {
+            const date = new Date(utcDateString);
+            if (hours >= 720) { // 1 month - show dates
+                return date.toLocaleDateString('en-US', {
+                    timeZone: 'Africa/Nairobi',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            } else if (hours >= 168) { // 7 days - show dates with time
+                return date.toLocaleDateString('en-US', {
+                    timeZone: 'Africa/Nairobi',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit'
+                });
+            } else { // Hours - show time only
+                return date.toLocaleTimeString('en-US', {
+                    timeZone: 'Africa/Nairobi',
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+        }
+
+        // Update Uganda time and date display
         function updateUgandaTime() {
             elements.ugandaTime.textContent = getUgandaTime();
+            elements.currentDate.textContent = getUgandaDate();
         }
 
         // Tab switching
@@ -527,24 +588,32 @@
             const startString = startDate.toISOString().slice(0,19).replace('T', '%20');
             const endString = endDate.toISOString().slice(0,19).replace('T', '%20');
             
+            // For 1 month, we need to limit results to avoid API limits
+            const results = hours >= 720 ? 2000 : 8000; // Limit results for 1 month
+            
             // ThingSpeak API for historical data
-            const url = `https://api.thingspeak.com/channels/${config.channelId}/feeds.json?api_key=${config.apiKey}&start=${startString}&end=${endString}&results=8000`;
+            const url = `https://api.thingspeak.com/channels/${config.channelId}/feeds.json?api_key=${config.apiKey}&start=${startString}&end=${endString}&results=${results}`;
             
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     elements.trendsLoading.style.display = 'none';
                     if (data && data.feeds && data.feeds.length > 0) {
-                        processHistoricalData(data.feeds);
+                        processHistoricalData(data.feeds, hours);
+                    } else {
+                        // Show message if no data
+                        elements.trendsLoading.style.display = 'block';
+                        elements.trendsLoading.textContent = 'No historical data available for this time range';
                     }
                 })
                 .catch(error => {
-                    elements.trendsLoading.style.display = 'none';
+                    elements.trendsLoading.style.display = 'block';
+                    elements.trendsLoading.textContent = 'Error loading historical data';
                 });
         }
 
         // Process historical data from ThingSpeak
-        function processHistoricalData(feeds) {
+        function processHistoricalData(feeds, hours) {
             const timestamps = [];
             const temperatureData = [];
             const humidityData = [];
@@ -553,10 +622,9 @@
             
             feeds.forEach(feed => {
                 if (feed.created_at) {
-                    const date = new Date(feed.created_at);
-                    // Convert to Uganda time (UTC+3)
-                    const ugandaDate = new Date(date.getTime() + (3 * 60 * 60 * 1000));
-                    timestamps.push(ugandaDate.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+                    // Convert UTC time to Uganda time for chart labels
+                    const timeLabel = convertToUgandaTimeForChart(feed.created_at, hours);
+                    timestamps.push(timeLabel);
                     
                     temperatureData.push(feed.field1 ? parseFloat(feed.field1) : null);
                     humidityData.push(feed.field2 ? parseFloat(feed.field2) : null);
@@ -565,7 +633,7 @@
                 }
             });
             
-            updateHistoricalCharts(timestamps, temperatureData, humidityData, batteryData, motionData);
+            updateHistoricalCharts(timestamps, temperatureData, humidityData, batteryData, motionData, hours);
         }
 
         // Initialize charts
@@ -692,9 +760,10 @@
         }
 
         // Update historical charts
-        function updateHistoricalCharts(labels, temperature, humidity, battery, motion) {
+        function updateHistoricalCharts(labels, temperature, humidity, battery, motion, hours) {
             if (!appState.charts.temperature) return;
             
+            // Update all charts
             appState.charts.temperature.data.labels = labels;
             appState.charts.temperature.data.datasets[0].data = temperature;
             appState.charts.temperature.update('none');
@@ -715,8 +784,12 @@
         // Update real-time history for trend indicators
         function updateRealtimeHistory(data) {
             const now = new Date();
-            const ugandaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-            const timeLabel = ugandaTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            const timeLabel = now.toLocaleTimeString('en-US', {
+                timeZone: 'Africa/Nairobi',
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
             
             appState.realTimeHistory.temperature.push(data.field1 ? parseFloat(data.field1) : null);
             appState.realTimeHistory.humidity.push(data.field2 ? parseFloat(data.field2) : null);
@@ -827,22 +900,16 @@
             
             // Update Uganda timestamp
             const now = new Date();
-            const ugandaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-            elements.lastUpdate.textContent = ugandaTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            elements.lastUpdate.textContent = now.toLocaleTimeString('en-US', {
+                timeZone: 'Africa/Nairobi',
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
             
             // Update data collection time
             if (data.created_at) {
-                const collectionTime = new Date(data.created_at);
-                const ugandaCollectionTime = new Date(collectionTime.getTime() + (3 * 60 * 60 * 1000));
-                elements.dataCollectionTime.textContent = ugandaCollectionTime.toLocaleString('en-US', {
-                    timeZone: 'Africa/Nairobi',
-                    hour12: false,
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+                elements.dataCollectionTime.textContent = convertToUgandaTime(data.created_at);
             }
             
             // Update real-time history and trends
